@@ -7,7 +7,7 @@ const distDir = path.join(root, 'dist');
 
 fs.mkdirSync(distDir, { recursive: true });
 
-const external = ['react-devtools-core'];
+const external = ['react-devtools-core', 'tweakcc'];
 
 await build({
   entryPoints: [path.join(root, 'src', 'cli', 'index.ts')],
