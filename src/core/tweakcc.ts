@@ -1,5 +1,5 @@
 import fs from 'node:fs';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { buildBrandConfig } from '../brands/index.js';
@@ -182,4 +182,59 @@ export const launchTweakccUi = (tweakDir: string, binaryPath: string): TweakccRe
   }
 
   return spawnSync('npx', [`tweakcc@${TWEAKCC_VERSION}`], { stdio: 'inherit', env, encoding: 'utf8' });
+};
+
+// Async version for TUI progress updates
+const spawnTweakccAsync = (
+  cmd: string,
+  args: string[],
+  env: NodeJS.ProcessEnv,
+  stdio: 'inherit' | 'pipe'
+): Promise<TweakccResult> => {
+  return new Promise((resolve) => {
+    const child = spawn(cmd, args, { stdio: 'pipe', env });
+    let stdout = '';
+    let stderr = '';
+    child.stdout?.on('data', (d) => {
+      stdout += d.toString();
+      if (stdio === 'inherit') process.stdout.write(d);
+    });
+    child.stderr?.on('data', (d) => {
+      stderr += d.toString();
+      if (stdio === 'inherit') process.stderr.write(d);
+    });
+    child.on('close', (status) => {
+      resolve({ status, stdout, stderr } as TweakccResult);
+    });
+    child.on('error', (err) => {
+      resolve({ status: 1, stdout: '', stderr: err.message } as TweakccResult);
+    });
+  });
+};
+
+export const runTweakccAsync = async (
+  tweakDir: string,
+  binaryPath: string,
+  stdio: 'inherit' | 'pipe' = 'inherit'
+): Promise<TweakccResult> => {
+  const env = {
+    ...process.env,
+    TWEAKCC_CONFIG_DIR: tweakDir,
+    TWEAKCC_CC_INSTALLATION_PATH: binaryPath,
+  } as NodeJS.ProcessEnv;
+
+  const local = resolveLocalTweakcc(['--apply']);
+  if (local) {
+    return spawnTweakccAsync(local.cmd, local.args, env, stdio);
+  }
+
+  if (commandExists('tweakcc')) {
+    return spawnTweakccAsync('tweakcc', ['--apply'], env, stdio);
+  }
+
+  if (!commandExists('npx')) {
+    return { status: 1, stderr: 'npx not found', stdout: '' } as TweakccResult;
+  }
+
+  return spawnTweakccAsync('npx', [`tweakcc@${TWEAKCC_VERSION}`, '--apply'], env, stdio);
 };

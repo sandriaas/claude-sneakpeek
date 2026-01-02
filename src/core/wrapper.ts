@@ -51,11 +51,11 @@ export const writeWrapper = (
     zaiSecondary: '\x1b[38;5;214m',   // Orange-gold
     zaiAccent: '\x1b[38;5;208m',      // Dark orange
     zaiDim: '\x1b[38;5;172m',         // Muted gold
-    // MiniMax: Purple/Violet gradient
-    mmPrimary: '\x1b[38;5;135m',      // Purple
-    mmSecondary: '\x1b[38;5;141m',    // Light purple
-    mmAccent: '\x1b[38;5;99m',        // Deep violet
-    mmDim: '\x1b[38;5;97m',           // Muted purple
+    // MiniMax: Coral/Red/Orange gradient (from brand image)
+    mmPrimary: '\x1b[38;5;203m',      // Coral/salmon red
+    mmSecondary: '\x1b[38;5;209m',    // Light coral/orange
+    mmAccent: '\x1b[38;5;208m',       // Orange
+    mmDim: '\x1b[38;5;167m',          // Muted coral/dark red
     // OpenRouter: Cyan/Teal gradient
     orPrimary: '\x1b[38;5;43m',       // Teal
     orSecondary: '\x1b[38;5;49m',     // Bright teal

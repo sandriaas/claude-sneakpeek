@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { commandExists } from './paths.js';
 
 export const resolveNpmCliPath = (npmDir: string, npmPackage: string): string => {
@@ -42,4 +42,61 @@ export const installNpmClaude = (params: {
   }
 
   return { cliPath };
+};
+
+/**
+ * Async version of installNpmClaude - allows React to re-render between steps
+ */
+export const installNpmClaudeAsync = (params: {
+  npmDir: string;
+  npmPackage: string;
+  npmVersion: string;
+  stdio?: 'inherit' | 'pipe';
+}): Promise<{ cliPath: string }> => {
+  return new Promise((resolve, reject) => {
+    if (!commandExists('npm')) {
+      reject(new Error('npm is required for npm-based installs.'));
+      return;
+    }
+
+    const stdio = params.stdio ?? 'inherit';
+    const pkgSpec = params.npmVersion ? `${params.npmPackage}@${params.npmVersion}` : params.npmPackage;
+    const child = spawn('npm', ['install', '--prefix', params.npmDir, '--no-save', pkgSpec], {
+      stdio: 'pipe',
+    });
+
+    let stdout = '';
+    let stderr = '';
+
+    child.stdout?.on('data', (data) => {
+      stdout += data.toString();
+      if (stdio === 'inherit') process.stdout.write(data);
+    });
+
+    child.stderr?.on('data', (data) => {
+      stderr += data.toString();
+      if (stdio === 'inherit') process.stderr.write(data);
+    });
+
+    child.on('close', (code) => {
+      if (code !== 0) {
+        const output = `${stderr}\n${stdout}`.trim();
+        const tail = output.length > 0 ? `\n${output}` : '';
+        reject(new Error(`npm install failed for ${pkgSpec}.${tail}`));
+        return;
+      }
+
+      const cliPath = resolveNpmCliPath(params.npmDir, params.npmPackage);
+      if (!fs.existsSync(cliPath)) {
+        reject(new Error(`npm install succeeded but cli.js was not found at ${cliPath}`));
+        return;
+      }
+
+      resolve({ cliPath });
+    });
+
+    child.on('error', (err) => {
+      reject(new Error(`Failed to spawn npm: ${err.message}`));
+    });
+  });
 };

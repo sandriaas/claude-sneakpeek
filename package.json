@@ -1,12 +1,35 @@
 {
   "name": "cc-mirror",
   "version": "0.3.0",
-  "private": true,
   "type": "module",
-  "description": "Create multiple isolated Claude Code variants",
+  "description": "Create multiple isolated Claude Code variants with custom providers (Z.ai, MiniMax, OpenRouter, LiteLLM)",
+  "author": "Numman Ali",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/numman-ali/cc-mirror.git"
+  },
+  "homepage": "https://github.com/numman-ali/cc-mirror#readme",
+  "bugs": {
+    "url": "https://github.com/numman-ali/cc-mirror/issues"
+  },
+  "keywords": [
+    "claude",
+    "claude-code",
+    "anthropic",
+    "ai",
+    "cli",
+    "minimax",
+    "openrouter",
+    "litellm",
+    "llm"
+  ],
   "bin": {
     "cc-mirror": "dist/cc-mirror.mjs"
   },
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "dev": "tsx src/cli/index.ts",
     "tui": "tsx src/cli/index.ts --tui",

@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { commandExists } from './paths.js';
 
 export type SkillInstallStatus = 'installed' | 'updated' | 'skipped' | 'failed';
@@ -87,6 +87,91 @@ export const ensureDevBrowserSkill = (opts: {
     let fetchResult = cloneRepo(tmpDir);
     if (!fetchResult.ok) {
       fetchResult = downloadArchive(tmpDir);
+    }
+    if (!fetchResult.ok) {
+      return { status: 'failed', message: fetchResult.message || 'skill fetch failed' };
+    }
+
+    const sourceDir = resolveSkillSourceDir(tmpDir);
+    if (!sourceDir) {
+      return { status: 'failed', message: 'skill source not found after download' };
+    }
+
+    if (exists) {
+      fs.rmSync(targetDir, { recursive: true, force: true });
+    }
+    copyDir(sourceDir, targetDir);
+    fs.writeFileSync(
+      markerPath,
+      JSON.stringify({ managedBy: 'cc-mirror', updatedAt: new Date().toISOString() }, null, 2)
+    );
+    return { status: exists ? 'updated' : 'installed', path: targetDir };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return { status: 'failed', message };
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+};
+
+// Async versions for TUI progress updates
+
+const spawnAsync = (cmd: string, args: string[]): Promise<{ ok: boolean; message?: string }> => {
+  return new Promise((resolve) => {
+    const child = spawn(cmd, args, { stdio: 'pipe' });
+    let stderr = '';
+    let stdout = '';
+    child.stdout?.on('data', (d) => { stdout += d.toString(); });
+    child.stderr?.on('data', (d) => { stderr += d.toString(); });
+    child.on('close', (code) => {
+      if (code === 0) resolve({ ok: true });
+      else resolve({ ok: false, message: stderr.trim() || stdout.trim() || `${cmd} failed` });
+    });
+    child.on('error', (err) => resolve({ ok: false, message: err.message }));
+  });
+};
+
+const cloneRepoAsync = async (targetDir: string): Promise<{ ok: boolean; message?: string }> => {
+  if (!commandExists('git')) return { ok: false, message: 'git not found' };
+  return spawnAsync('git', ['clone', '--depth', '1', DEV_BROWSER_REPO, targetDir]);
+};
+
+const downloadArchiveAsync = async (targetDir: string): Promise<{ ok: boolean; message?: string }> => {
+  if (!commandExists('curl') || !commandExists('tar')) {
+    return { ok: false, message: 'curl or tar not found' };
+  }
+  const archivePath = path.join(targetDir, 'dev-browser.tar.gz');
+  const curlResult = await spawnAsync('curl', ['-L', '-o', archivePath, DEV_BROWSER_ARCHIVE]);
+  if (!curlResult.ok) return curlResult;
+  return spawnAsync('tar', ['-xzf', archivePath, '-C', targetDir]);
+};
+
+export const ensureDevBrowserSkillAsync = async (opts: {
+  install: boolean;
+  update?: boolean;
+  targetDir?: string;
+}): Promise<SkillInstallResult> => {
+  if (!opts.install) {
+    return { status: 'skipped', message: 'skill install disabled' };
+  }
+
+  const skillRoot = opts.targetDir || path.join(os.homedir(), '.claude', 'skills');
+  const targetDir = path.join(skillRoot, 'dev-browser');
+  const markerPath = path.join(targetDir, MANAGED_MARKER);
+  const exists = fs.existsSync(targetDir);
+  const managed = exists && fs.existsSync(markerPath);
+
+  if (exists && !managed && !opts.update) {
+    return { status: 'skipped', message: 'existing skill is user-managed', path: targetDir };
+  }
+
+  ensureDir(skillRoot);
+
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cc-mirror-skill-'));
+  try {
+    let fetchResult = await cloneRepoAsync(tmpDir);
+    if (!fetchResult.ok) {
+      fetchResult = await downloadArchiveAsync(tmpDir);
     }
     if (!fetchResult.ok) {
       return { status: 'failed', message: fetchResult.message || 'skill fetch failed' };

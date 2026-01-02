@@ -96,6 +96,54 @@ export interface CoreModule {
   tweakVariant: (rootDir: string, name: string) => void;
   removeVariant: (rootDir: string, name: string) => void;
   doctor: (rootDir: string, binDir: string) => DoctorReportItem[];
+  createVariantAsync?: (params: {
+    name: string;
+    providerKey: string;
+    baseUrl?: string;
+    apiKey?: string;
+    extraEnv?: string[];
+    modelOverrides?: {
+      sonnet?: string;
+      opus?: string;
+      haiku?: string;
+      smallFast?: string;
+      defaultModel?: string;
+      subagentModel?: string;
+    };
+    brand?: string;
+    rootDir?: string;
+    binDir?: string;
+    npmPackage?: string;
+    noTweak?: boolean;
+    promptPack?: boolean;
+    promptPackMode?: 'minimal' | 'maximal';
+    skillInstall?: boolean;
+    shellEnv?: boolean;
+    skillUpdate?: boolean;
+    tweakccStdio?: 'pipe' | 'inherit';
+    onProgress?: (step: string) => void;
+  }) => Promise<CreateVariantResult>;
+  updateVariantAsync?: (
+    rootDir: string,
+    name: string,
+    opts?: {
+      tweakccStdio?: 'pipe' | 'inherit';
+      binDir?: string;
+      promptPack?: boolean;
+      promptPackMode?: 'minimal' | 'maximal';
+      skillInstall?: boolean;
+      shellEnv?: boolean;
+      modelOverrides?: {
+        sonnet?: string;
+        opus?: string;
+        haiku?: string;
+        smallFast?: string;
+        defaultModel?: string;
+        subagentModel?: string;
+      };
+      onProgress?: (step: string) => void;
+    }
+  ) => Promise<UpdateVariantResult>;
 }
 
 export interface ProvidersModule {
@@ -292,70 +340,83 @@ export const App: React.FC<AppProps> = ({
 
   useEffect(() => {
     if (screen !== 'create-running') return;
-    try {
-      setProgressLines([]);
-      const result = core.createVariant({
-        name,
-        providerKey: providerKey || 'zai',
-        baseUrl: effectiveBaseUrl,
-        apiKey,
-        extraEnv,
-        modelOverrides,
-        brand: brandKey,
-        rootDir,
-        binDir,
-        npmPackage,
-        noTweak: !useTweak,
-        promptPack: usePromptPack,
-        promptPackMode,
-        skillInstall: installSkill,
-        shellEnv,
-        skillUpdate,
-        tweakccStdio: 'pipe',
-        onProgress: (step: string) => setProgressLines(prev => [...prev, step]),
-      });
-      const wrapper = result.wrapperPath;
-      const providerLabel = provider?.label || providerKey || 'Provider';
-      const summary = [
-        `Provider: ${providerLabel}`,
-        `Install: npm ${npmPackage}@${npmVersion}`,
-        `Prompt pack: ${usePromptPack ? `on (${promptPackMode})` : 'off'}`,
-        `dev-browser skill: ${installSkill ? 'on' : 'off'}`,
-        ...(modelOverrides.sonnet || modelOverrides.opus || modelOverrides.haiku
-          ? [
-              `Models: sonnet=${modelOverrides.sonnet || '-'}, opus=${modelOverrides.opus || '-'}, haiku=${modelOverrides.haiku || '-'}`,
-            ]
-          : []),
-        ...(providerKey === 'zai' ? [`Shell env: ${shellEnv ? 'write Z_AI_API_KEY' : 'manual'}`] : []),
-        ...(result.notes || []),
-      ];
-      const nextSteps = [
-        `Run: ${name}`,
-        `Update: cc-mirror update ${name}`,
-        `Tweak: cc-mirror tweak ${name}`,
-        `Config: ${path.join(rootDir, name, 'config', 'settings.json')}`,
-      ];
-      const help = ['Help: cc-mirror help', 'List: cc-mirror list', 'Doctor: cc-mirror doctor'];
-      setCompletionSummary(summary);
-      setCompletionNextSteps(nextSteps);
-      setCompletionHelp(help);
-      setCompletionShareUrl(buildShareUrl(providerLabel, name, usePromptPack ? promptPackMode : undefined));
-      setShareStatus(null);
-      setDoneLines([
-        `Variant created: ${name}`,
-        `Wrapper: ${wrapper}`,
-        `Config: ${path.join(rootDir, name, 'config')}`,
-      ]);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      setDoneLines([`Failed: ${message}`]);
-      setCompletionSummary([]);
-      setCompletionNextSteps([]);
-      setCompletionHelp([]);
-      setCompletionShareUrl(null);
-      setShareStatus(null);
-    }
-    setScreen('create-done');
+    let cancelled = false;
+
+    const runCreate = async () => {
+      try {
+        setProgressLines([]);
+        const params = {
+          name,
+          providerKey: providerKey || 'zai',
+          baseUrl: effectiveBaseUrl,
+          apiKey,
+          extraEnv,
+          modelOverrides,
+          brand: brandKey,
+          rootDir,
+          binDir,
+          npmPackage,
+          noTweak: !useTweak,
+          promptPack: usePromptPack,
+          promptPackMode,
+          skillInstall: installSkill,
+          shellEnv,
+          skillUpdate,
+          tweakccStdio: 'pipe' as const,
+          onProgress: (step: string) => setProgressLines(prev => [...prev, step]),
+        };
+        // Use async version if available for live progress updates
+        const result = core.createVariantAsync
+          ? await core.createVariantAsync(params)
+          : core.createVariant(params);
+        if (cancelled) return;
+        const wrapper = result.wrapperPath;
+        const providerLabel = provider?.label || providerKey || 'Provider';
+        const summary = [
+          `Provider: ${providerLabel}`,
+          `Install: npm ${npmPackage}@${npmVersion}`,
+          `Prompt pack: ${usePromptPack ? `on (${promptPackMode})` : 'off'}`,
+          `dev-browser skill: ${installSkill ? 'on' : 'off'}`,
+          ...(modelOverrides.sonnet || modelOverrides.opus || modelOverrides.haiku
+            ? [
+                `Models: sonnet=${modelOverrides.sonnet || '-'}, opus=${modelOverrides.opus || '-'}, haiku=${modelOverrides.haiku || '-'}`,
+              ]
+            : []),
+          ...(providerKey === 'zai' ? [`Shell env: ${shellEnv ? 'write Z_AI_API_KEY' : 'manual'}`] : []),
+          ...(result.notes || []),
+        ];
+        const nextSteps = [
+          `Run: ${name}`,
+          `Update: cc-mirror update ${name}`,
+          `Tweak: cc-mirror tweak ${name}`,
+          `Config: ${path.join(rootDir, name, 'config', 'settings.json')}`,
+        ];
+        const help = ['Help: cc-mirror help', 'List: cc-mirror list', 'Doctor: cc-mirror doctor'];
+        setCompletionSummary(summary);
+        setCompletionNextSteps(nextSteps);
+        setCompletionHelp(help);
+        setCompletionShareUrl(buildShareUrl(providerLabel, name, usePromptPack ? promptPackMode : undefined));
+        setShareStatus(null);
+        setDoneLines([
+          `Variant created: ${name}`,
+          `Wrapper: ${wrapper}`,
+          `Config: ${path.join(rootDir, name, 'config')}`,
+        ]);
+      } catch (error) {
+        if (cancelled) return;
+        const message = error instanceof Error ? error.message : String(error);
+        setDoneLines([`Failed: ${message}`]);
+        setCompletionSummary([]);
+        setCompletionNextSteps([]);
+        setCompletionHelp([]);
+        setCompletionShareUrl(null);
+        setShareStatus(null);
+      }
+      if (!cancelled) setScreen('create-done');
+    };
+
+    runCreate();
+    return () => { cancelled = true; };
   }, [
     screen,
     name,
@@ -382,111 +443,130 @@ export const App: React.FC<AppProps> = ({
   useEffect(() => {
     if (screen !== 'manage-update') return;
     if (!selectedVariant) return;
-    try {
-      setProgressLines([]);
-      const result = core.updateVariant(rootDir, selectedVariant.name, {
-        tweakccStdio: 'pipe',
-        binDir,
-        onProgress: (step: string) => setProgressLines(prev => [...prev, step]),
-      });
-      const meta = result.meta;
-      const summary = [
-        `Provider: ${meta.provider}`,
-        `Prompt pack: ${meta.promptPack ? `on (${meta.promptPackMode || 'maximal'})` : 'off'}`,
-        `dev-browser skill: ${meta.skillInstall ? 'on' : 'off'}`,
-        ...(meta.provider === 'zai' ? [`Shell env: ${meta.shellEnv ? 'write Z_AI_API_KEY' : 'manual'}`] : []),
-        ...(result.notes || []),
-      ];
-      const nextSteps = [
-        `Run: ${selectedVariant.name}`,
-        `Tweak: cc-mirror tweak ${selectedVariant.name}`,
-        `Config: ${path.join(rootDir, selectedVariant.name, 'config', 'settings.json')}`,
-      ];
-      const help = ['Help: cc-mirror help', 'List: cc-mirror list', 'Doctor: cc-mirror doctor'];
-      setCompletionSummary(summary);
-      setCompletionNextSteps(nextSteps);
-      setCompletionHelp(help);
-      setCompletionShareUrl(null);
-      setShareStatus(null);
-      setDoneLines([`Updated ${selectedVariant.name}`]);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      setDoneLines([`Failed: ${message}`]);
-      setCompletionSummary([]);
-      setCompletionNextSteps([]);
-      setCompletionHelp([]);
-      setCompletionShareUrl(null);
-      setShareStatus(null);
-    }
-    setScreen('manage-update-done');
+    let cancelled = false;
+
+    const runUpdate = async () => {
+      try {
+        setProgressLines([]);
+        const opts = {
+          tweakccStdio: 'pipe' as const,
+          binDir,
+          onProgress: (step: string) => setProgressLines(prev => [...prev, step]),
+        };
+        // Use async version if available for live progress updates
+        const result = core.updateVariantAsync
+          ? await core.updateVariantAsync(rootDir, selectedVariant.name, opts)
+          : core.updateVariant(rootDir, selectedVariant.name, opts);
+        if (cancelled) return;
+        const meta = result.meta;
+        const summary = [
+          `Provider: ${meta.provider}`,
+          `Prompt pack: ${meta.promptPack ? `on (${meta.promptPackMode || 'maximal'})` : 'off'}`,
+          `dev-browser skill: ${meta.skillInstall ? 'on' : 'off'}`,
+          ...(meta.provider === 'zai' ? [`Shell env: ${meta.shellEnv ? 'write Z_AI_API_KEY' : 'manual'}`] : []),
+          ...(result.notes || []),
+        ];
+        const nextSteps = [
+          `Run: ${selectedVariant.name}`,
+          `Tweak: cc-mirror tweak ${selectedVariant.name}`,
+          `Config: ${path.join(rootDir, selectedVariant.name, 'config', 'settings.json')}`,
+        ];
+        const help = ['Help: cc-mirror help', 'List: cc-mirror list', 'Doctor: cc-mirror doctor'];
+        setCompletionSummary(summary);
+        setCompletionNextSteps(nextSteps);
+        setCompletionHelp(help);
+        setCompletionShareUrl(null);
+        setShareStatus(null);
+        setDoneLines([`Updated ${selectedVariant.name}`]);
+      } catch (error) {
+        if (cancelled) return;
+        const message = error instanceof Error ? error.message : String(error);
+        setDoneLines([`Failed: ${message}`]);
+        setCompletionSummary([]);
+        setCompletionNextSteps([]);
+        setCompletionHelp([]);
+        setCompletionShareUrl(null);
+        setShareStatus(null);
+      }
+      if (!cancelled) setScreen('manage-update-done');
+    };
+
+    runUpdate();
+    return () => { cancelled = true; };
   }, [screen, selectedVariant, rootDir, binDir, core]);
 
   useEffect(() => {
     if (screen !== 'manage-tweak') return;
     if (!selectedVariant) return;
-    try {
-      setProgressLines([`Opening tweakcc for ${selectedVariant.name}...`]);
-      core.tweakVariant(rootDir, selectedVariant.name);
-      setCompletionSummary([`Opened tweakcc for ${selectedVariant.name}`]);
-      setCompletionNextSteps([
-        `Run: ${selectedVariant.name}`,
-        `Update: cc-mirror update ${selectedVariant.name}`,
-      ]);
-      setCompletionHelp(['Help: cc-mirror help', 'List: cc-mirror list', 'Doctor: cc-mirror doctor']);
-      setCompletionShareUrl(null);
-      setShareStatus(null);
-      setDoneLines([`Closed tweakcc for ${selectedVariant.name}`]);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      setDoneLines([`Failed: ${message}`]);
-      setCompletionSummary([]);
-      setCompletionNextSteps([]);
-      setCompletionHelp([]);
-      setCompletionShareUrl(null);
-      setShareStatus(null);
-    }
+    // Can't launch tweakcc from within TUI (both are ink apps that conflict)
+    // Show user the command to run instead
+    setDoneLines([`To customize ${selectedVariant.name}, run:`]);
+    setCompletionSummary([`cc-mirror tweak ${selectedVariant.name}`]);
+    setCompletionNextSteps([
+      'Exit this TUI first (press ESC or q)',
+      'Then run the command above in your terminal',
+    ]);
+    setCompletionHelp(['tweakcc lets you customize themes, overlays, and more']);
+    setCompletionShareUrl(null);
+    setShareStatus(null);
     setScreen('manage-tweak-done');
-  }, [screen, selectedVariant, rootDir, core]);
+  }, [screen, selectedVariant]);
 
   useEffect(() => {
     if (screen !== 'updateAll') return;
-    const entries = core.listVariants(rootDir);
-    if (entries.length === 0) {
-      setDoneLines(['No variants found.']);
-      setCompletionSummary([]);
-      setCompletionNextSteps([]);
-      setCompletionHelp([]);
-      setCompletionShareUrl(null);
-      setShareStatus(null);
-      setScreen('updateAll-done');
-      return;
-    }
-    setProgressLines([]);
-    try {
-      for (const entry of entries) {
-        setProgressLines(prev => [...prev, `━━ ${entry.name} ━━`]);
-        core.updateVariant(rootDir, entry.name, {
-          tweakccStdio: 'pipe',
-          binDir,
-          onProgress: (step: string) => setProgressLines(prev => [...prev, `  ${step}`]),
-        });
+    let cancelled = false;
+
+    const runUpdateAll = async () => {
+      const entries = core.listVariants(rootDir);
+      if (entries.length === 0) {
+        setDoneLines(['No variants found.']);
+        setCompletionSummary([]);
+        setCompletionNextSteps([]);
+        setCompletionHelp([]);
+        setCompletionShareUrl(null);
+        setShareStatus(null);
+        setScreen('updateAll-done');
+        return;
       }
-      setCompletionSummary([`Updated ${entries.length} variants.`]);
-      setCompletionNextSteps(['Run any variant by name', 'Use Manage Variants to inspect details']);
-      setCompletionHelp(['Help: cc-mirror help', 'List: cc-mirror list', 'Doctor: cc-mirror doctor']);
-      setCompletionShareUrl(null);
-      setShareStatus(null);
-      setDoneLines(['All variants updated.']);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      setDoneLines([`Failed: ${message}`]);
-      setCompletionSummary([]);
-      setCompletionNextSteps([]);
-      setCompletionHelp([]);
-      setCompletionShareUrl(null);
-      setShareStatus(null);
-    }
-    setScreen('updateAll-done');
+      setProgressLines([]);
+      try {
+        for (const entry of entries) {
+          if (cancelled) return;
+          setProgressLines(prev => [...prev, `━━ ${entry.name} ━━`]);
+          const opts = {
+            tweakccStdio: 'pipe' as const,
+            binDir,
+            onProgress: (step: string) => setProgressLines(prev => [...prev, `  ${step}`]),
+          };
+          // Use async version if available for live progress updates
+          if (core.updateVariantAsync) {
+            await core.updateVariantAsync(rootDir, entry.name, opts);
+          } else {
+            core.updateVariant(rootDir, entry.name, opts);
+          }
+        }
+        if (cancelled) return;
+        setCompletionSummary([`Updated ${entries.length} variants.`]);
+        setCompletionNextSteps(['Run any variant by name', 'Use Manage Variants to inspect details']);
+        setCompletionHelp(['Help: cc-mirror help', 'List: cc-mirror list', 'Doctor: cc-mirror doctor']);
+        setCompletionShareUrl(null);
+        setShareStatus(null);
+        setDoneLines(['All variants updated.']);
+      } catch (error) {
+        if (cancelled) return;
+        const message = error instanceof Error ? error.message : String(error);
+        setDoneLines([`Failed: ${message}`]);
+        setCompletionSummary([]);
+        setCompletionNextSteps([]);
+        setCompletionHelp([]);
+        setCompletionShareUrl(null);
+        setShareStatus(null);
+      }
+      if (!cancelled) setScreen('updateAll-done');
+    };
+
+    runUpdateAll();
+    return () => { cancelled = true; };
   }, [screen, rootDir, binDir, core]);
 
   const resetWizard = () => {

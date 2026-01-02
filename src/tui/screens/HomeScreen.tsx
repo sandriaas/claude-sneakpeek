@@ -45,13 +45,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onSelect }) => {
         />
       </Box>
 
-      <Box marginY={1}>
-        <Box flexDirection="column">
-          <Text color={colors.textMuted}>Quick Setup defaults to maximal prompt packs.</Text>
-          <Text color={colors.textMuted}>Z.ai also writes Z_AI_API_KEY to your shell profile (opt out in Advanced).</Text>
-        </Box>
-      </Box>
-
       <Divider />
       <HintBar />
     </Frame>

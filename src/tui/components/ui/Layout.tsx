@@ -53,22 +53,23 @@ export const Frame: React.FC<FrameProps> = ({
 
 /**
  * Creator footer - shown at bottom of every screen
- * Shows full URLs for X and GitHub with contact CTA
+ * Left: Creator name + CTA | Right: Social links (stacked)
  */
 export const CreatorFooter: React.FC = () => (
   <Box flexDirection="column" marginTop={1}>
     <Box>
       <Text color={colors.border}>{'─'.repeat(FRAME_WIDTH - 8)}</Text>
     </Box>
-    <Box flexDirection="column" marginTop={1}>
-      <Box>
-        <Text color={colors.textDim}>Created by </Text>
-        <Text color={colors.gold} bold>Numman Ali</Text>
-        <Text color={colors.textDim}> · Want features? Get in touch!</Text>
+    <Box flexDirection="row" justifyContent="space-between" marginTop={1}>
+      <Box flexDirection="column">
+        <Box>
+          <Text color={colors.textDim}>Created by </Text>
+          <Text color={colors.gold} bold>Numman Ali</Text>
+        </Box>
+        <Text color={colors.textDim}>Want features? Get in touch!</Text>
       </Box>
-      <Box>
+      <Box flexDirection="column" alignItems="flex-end">
         <Text color={colors.primaryBright}>https://x.com/nummanali</Text>
-        <Text color={colors.textDim}> · </Text>
         <Text color={colors.primaryBright}>https://github.com/numman-ali</Text>
       </Box>
     </Box>

@@ -87,7 +87,7 @@ const PROVIDERS = [
     apiKey: 'test-minimax-key',
     expectedThemeId: 'minimax-pulse',
     expectedSplashStyle: 'minimax',
-    colorCode: '\\x1b[38;5;135m', // Purple
+    colorCode: '\\x1b[38;5;203m', // Coral/salmon red
   },
   {
     key: 'openrouter',
@@ -456,7 +456,7 @@ test('E2E: Colored ASCII art content verification', async (t) => {
       // Verify each provider has its specific color
       const colorPatterns: Record<string, RegExp> = {
         zai: /\x1b\[38;5;220m/, // Gold
-        minimax: /\x1b\[38;5;135m/, // Purple
+        minimax: /\x1b\[38;5;203m/, // Coral/salmon red
         openrouter: /\x1b\[38;5;43m/, // Teal
         litellm: /\x1b\[38;5;39m/, // Sky blue
       };
