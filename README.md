@@ -45,6 +45,31 @@ npx @realmikekelly/claude-sneakpeek quick --name <variant>
 
 This approach uses the prompt files included in the tweakcc repo (including newer prompts not yet published to npm) and allows tweakcc to patch newer Claude Code versions.
 
+History of local fix applied in this repo:
+
+- Cloned https://github.com/Piebald-AI/tweakcc and built locally (npm install --legacy-peer-deps && npm run build)
+- Linked the local tweakcc by changing `package.json` to `"tweakcc": "file:../tweakcc"`
+- Adjusted src/core/tweakcc.ts to resolve tweakcc's entrypoint (try dist/index.mjs then dist/index.js)
+- Bundled and created variant `claude3` successfully with tweakcc applied
+
+Commands run during repro and fix (example):
+
+```bash
+# clone and build tweakcc
+git clone https://github.com/Piebald-AI/tweakcc.git
+cd tweakcc
+npm install --legacy-peer-deps
+npm run build
+
+# in claude-sneakpeek
+# update package.json dependency
+npm install
+npm run bundle
+npx @realmikekelly/claude-sneakpeek quick --name claude3
+```
+
+Use these steps if `tweakcc failed.` appears during variant creation.
+
 
 ## What gets unlocked?
 
