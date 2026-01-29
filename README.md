@@ -8,6 +8,10 @@ This installs a completely isolated instance of Claude Code—separate config, s
 
 ## Install
 
+Note: tweakcc (the Claude Code theming/patching tool) may fail when the installed Claude Code version is newer than the published tweakcc npm release. If you see "tweakcc failed." during `quick`/`update`, either use the `--no-tweak` flag or build tweakcc from source and link it locally as described below.
+
+
+
 ```bash
 npx @realmikekelly/claude-sneakpeek quick --name claudesp
 ```
@@ -19,6 +23,28 @@ echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc && source ~/.zshrc
 ```
 
 Then run `claudesp` to launch.
+
+## What gets unlocked?
+
+Local tweakcc installation
+
+If the tweakcc npm release doesn't yet support the Claude Code version installed by claude-sneakpeek, you can clone and build tweakcc locally, then link it into claude-sneakpeek before running `quick`:
+
+```bash
+# From the parent directory of claude-sneakpeek
+git clone https://github.com/Piebald-AI/tweakcc.git
+cd tweakcc
+npm install --legacy-peer-deps
+npm run build
+# In claude-sneakpeek repo
+# Update package.json: set "tweakcc": "file:../tweakcc"
+npm install
+npm run bundle
+npx @realmikekelly/claude-sneakpeek quick --name <variant>
+```
+
+This approach uses the prompt files included in the tweakcc repo (including newer prompts not yet published to npm) and allows tweakcc to patch newer Claude Code versions.
+
 
 ## What gets unlocked?
 
