@@ -114,7 +114,13 @@ export const ensureTweakccConfig = (tweakDir: string, brandKey?: string | null):
 
 const resolveLocalTweakcc = (args: string[]) => {
   try {
-    const entry = require.resolve('tweakcc/dist/index.js');
+    // Try .mjs first (newer builds), then .js (older builds)
+    let entry: string;
+    try {
+      entry = require.resolve('tweakcc/dist/index.mjs');
+    } catch {
+      entry = require.resolve('tweakcc/dist/index.js');
+    }
     return { cmd: process.execPath, args: [entry, ...args] };
   } catch {
     return null;
